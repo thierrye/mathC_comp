@@ -41,14 +41,14 @@ integer             [0-9]+
   //type
   if(l_istype(yytext))
     {
-      fprintf(stderr,"type :%s\n",yytext);
+      //fprintf(stderr,"type :%s\n",yytext);
       yylval.typ_val.t = str_to_type_m(yytext);
       yylval.typ_val.line = src_line;
       return TYPE;
     }
   //id
 
-  fprintf(stderr,"id :%s\n",yytext);
+  //fprintf(stderr,"id :%s\n",yytext);
   yylval.id_val.str_val = strdup(yytext);
   yylval.id_val.line = src_line;
   return ID;
@@ -56,7 +56,7 @@ integer             [0-9]+
 
 {integer}      {
   /***************************************************************************************************/
-  fprintf(stderr,"integer :%s \n",yytext);
+  //fprintf(stderr,"integer :%s \n",yytext);
   yylval.int_val = atoi(yytext);
   return CONST_VAL;
 
@@ -64,13 +64,13 @@ integer             [0-9]+
 
 [{};+/=*()]      {
   /***************************************************************************************************/
-  fprintf(stderr,"token :%s \n",yytext);
+  //fprintf(stderr,"token :%s \n",yytext);
   return yytext[0];
 }
 
 .   {
   /***************************************************************************************************/
-  fprintf(stderr,"illegal char : %s\n",yytext);
+  //fprintf(stderr,"illegal char : %s\n",yytext);
   //  return ERROR;
 }
   
