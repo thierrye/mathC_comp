@@ -359,16 +359,16 @@ void ic_print_code(ic_quad* code)
 	  fprintf(stdout,"goto %s\n",c->dest->dest_label);
 	  break;
 	case EQUAL:
-	  fprintf(stdout," %s <- (%s == %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"%s <- (%s == %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case INFERIOR:
-	  fprintf(stdout," %s <- (%s <= %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"%s <- (%s <= %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case PLUS:
-	  fprintf(stdout," %s <- (%s + %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"%s <- (%s + %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case MULT:
-	  fprintf(stdout," %s <- (%s * %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"%s <- (%s * %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case SKIP:
 	  fprintf(stdout,"skip\n");
