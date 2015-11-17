@@ -184,6 +184,20 @@ ic_quad* ic_quad_gen_g(char* dest,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op 
 
   return ret_q;
 }
+ic_quad* ic_quad_gen_gl(ic_label* l,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op)
+{
+  ic_quad* ret_q = malloc(sizeof(*ret_q));
+  ret_q->q_name = NULL;
+  ret_q->dest = malloc(sizeof(*(ret_q->dest)));
+  //  assert(dest != NULL);
+  ret_q->dest->dest_label = strdup(l->label_name);
+  ret_q->arg1 = arg1;
+  ret_q->arg2 = arg2;
+  ret_q->op = op;
+  ret_q->next = NULL;
+
+  return ret_q;
+}
 ic_quad* ic_quad_concat(ic_quad* arg1,ic_quad *arg2)
 {
   ic_quad *ret = arg1;
@@ -269,8 +283,8 @@ void ic_label_set_code(ic_label* l,ic_quad* dest)
     dest->q_name = strdup(l->label_name);
   l->q = dest;
   //
-  fprintf(stderr,"ic_label_set_code : dest->q_name %s && printcode : \n",dest->q_name);
-  ic_print_code(dest);
+  //fprintf(stderr,"ic_label_set_code : dest->q_name %s && printcode : \n",dest->q_name);
+  //ic_print_code(dest);
 }
 void ic_label_set_quad(ic_label* l,ic_quad* q)
 {
@@ -308,7 +322,21 @@ void ic_backpatch(ic_quad* q1,ic_quad* q2)
       scan = scan->next;
     }
 }
-
+void ic_quad_replace_label(ic_quad* q,ic_label* old_label,ic_label* new_label)
+{
+  ic_quad* scan = q;
+  while(scan != NULL)
+    {
+      if(scan->op == IFZ_GOTO || scan->op == IFEQ || scan->op == GOTO)
+	{
+	  if(strcmp(scan->dest->dest_label,old_label->label_name) == 0)
+	    {
+	      free(scan->dest->dest_label);
+	      scan->dest->dest_label = strdup(new_label->label_name);
+	    }
+	}
+    }
+}
 
 
 void ic_print_table()
@@ -354,6 +382,9 @@ void ic_print_code(ic_quad* code)
 	  break;
 	case IFZ_GOTO:
 	  fprintf(stdout,"if %s == 0 goto %s\n",c->arg1->name,c->dest->dest_label);
+	  break;
+	case IFEQ:
+	  fprintf(stdout,"if %s == %s goto %s\n",c->arg1->name,c->arg2->name,c->dest->dest_label);
 	  break;
 	case GOTO:
 	  fprintf(stdout,"goto %s\n",c->dest->dest_label);

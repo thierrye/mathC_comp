@@ -10,4 +10,4 @@ tr_mathC.tab.c : tr_mathC.y
 	bison --defines=tr_mathC.h --file-prefix=tr_mathC tr_mathC.y --report=states --report-file=tr_mathC.output
 
 clean :
-	rm -f tr_mathC.tab.c tr_mathC.h *~ lex.yy.c comp tr_mathC.output
+	rm -f tr_mathC.tab.c tr_mathC.h *~ lex.yy.c comp tr_mathC.output *.spi

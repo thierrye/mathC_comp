@@ -41,8 +41,9 @@ ic_quad* q_buff;
 %token <typ_val> TYPE 
 %token <id_val> ID
 %token <int_val> CONST_VAL
-%right '+'
-%right '*'
+%nonassoc EQ
+%left '+'
+%left '*'
 %type <exp_val> exp assign var_decl if_stmt while_stmt atom_stm stm_list prog
 %error-verbose
 %start prog
@@ -52,9 +53,9 @@ ic_quad* q_buff;
 prog : stm_list {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
-var_print_table();
+/*var_print_table();
 ic_print_table();
-ic_print_code($1.i_code);
+ic_print_code($1.i_code);*/
 q_buff = $1.i_code;
      if($1.next != NULL)
 		{
@@ -158,15 +159,18 @@ if_stmt : IF '(' exp ')' atom_stm {
     else
         $$.next = ic_new_label_gen(NULL);
 
-    //fprintf(stderr," varname carefull : %s\n",($3.i_var)->name);
-    ic_quad* if_code = ic_quad_concat($3.i_code,
+    /*ic_quad* if_code = ic_quad_concat($3.i_code,
                                    ic_quad_gen_g($$.next->label_name,
                                                  $3.i_var,
                                                  NULL,
-                                                 IFZ_GOTO));
-    //fprintf(stderr,"ifexp : printcode\n");
-//ic_print_code(if_code);
-
+                                                 IFZ_GOTO));*/
+    ic_quad* q = ic_quad_gen_g($$.next->label_name,
+                               $3.i_var,
+                               NULL,
+                               IFZ_GOTO);
+    if($3.next != NULL)
+        ic_label_set_code($3.next,q);
+    ic_quad* if_code = ic_quad_concat($3.i_code,q);
     $$.i_code = ic_quad_concat(if_code,
                             $5.i_code);
 
@@ -181,22 +185,21 @@ if_stmt : IF '(' exp ')' atom_stm {
 $$.i_code = NULL;
 }
 ;
+
 while_stmt : WHILE '(' exp ')' atom_stm {
 /*****************************************************************************************************/
-//$3.exp_true = ic_new_label_gen($5.i_code);
-//ic_label* true_l = ic_new_label_gen($5.i_code);
-    //$$.next = ic_new_label_gen(NULL);
-    //$3.exp_false = $$.next;
-    //$5.next = $$.next;
+/*****************************************************************************************************/
     if($5.next != NULL)
-        $$.next = $5.next;
+        $$.next = $5.next;// ?
     else
         $$.next = ic_new_label_gen(NULL);
-    ic_quad* while_code = ic_quad_concat($3.i_code,
-                                   ic_quad_gen_g($$.next->label_name,
+    ic_quad* while_code = ic_quad_gen_g($$.next->label_name,
                                                  $3.i_var,
                                                  NULL,
-                                                 IFZ_GOTO));
+                                                 IFZ_GOTO);
+    if($3.next != NULL)
+	ic_label_set_code($3.next,while_code);
+    while_code = ic_quad_concat($3.i_code,while_code);
     ic_label* while_label = ic_new_label_gen(while_code);
     $$.i_code = ic_quad_concat(while_code,
                             $5.i_code);
@@ -212,7 +215,7 @@ var_decl : TYPE ID   {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
     //fprintf(stderr,"simple var declaration of %s\n",$2.str_val);
-id_s v = new_id_s($2.str_val,$1.t,0);
+id_s v = new_id_s($2.str_val,$1.t,$1.line);
 v.ic_var = ic_gen_temp(0);
 
     if(!var_add_global(v))
@@ -221,14 +224,13 @@ v.ic_var = ic_gen_temp(0);
 exit(1);
 }
 $$.i_code = NULL;
-//$$.next = ic_new_label_gen(NULL);
 $$.next = NULL;
 
 }
 	|	TYPE ID '=' exp   {
 /*****************************************************************************************************/
     //fprintf(stderr,"var declaration and assignment of %s\n",$2.str_val);
-    id_s v = new_id_s($2.str_val,$1.t,0);
+    id_s v = new_id_s($2.str_val,$1.t,$1.line);
     v.ic_var = ic_gen_temp(0);
 assert(v.ic_var != NULL);
 
@@ -258,14 +260,6 @@ if(!var_is_global($1.str_val))
 exit(1);
 }
 else{
-//$$.i_var = ic_gen_temp(0);
-//assert(var_lookup($1.str_val) != NULL);
-//assert(var_lookup($1.str_val)->ic_var != NULL);
-//fprintf(stderr,"exp : ID : new temp\n");
-// $$.i_code = ic_quad_gen($$.i_var,var_lookup($1.str_val)->ic_var,NULL,ASSIGN);
-
- /*fprintf(stderr,"exp : ID %s printcode\n",$1.str_val);
-ic_print_code($$.i_code);*/
 $$.i_code = NULL;
 $$.i_var = var_lookup($1.str_val)->ic_var;
  $$.next = NULL;
@@ -284,16 +278,90 @@ $$.next = NULL;
 /*****************************************************************************************************/
 $$.i_var = ic_gen_temp(0);
  $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
- $$.i_code = ic_quad_concat($$.i_code,
-                            ic_quad_gen($$.i_var,$1.i_var,$3.i_var,PLUS));
+// $$.i_code = ic_quad_concat($$.i_code,
+ ic_quad* p_q = ic_quad_gen($$.i_var,$1.i_var,$3.i_var,PLUS);
+//branch
+if($1.next != NULL && $3.i_code != NULL)
+   {
+    ic_label_set_code($1.next,$3.i_code);
+   }
+else if($1.next != NULL)
+   {
+       ic_label_set_code($1.next,p_q);
+}else if ($3.next != NULL)
+       ic_label_set_code($3.next,p_q);
+$$.i_code = ic_quad_concat($$.i_code,p_q);
+$$.next = NULL;
 
 
 }
 	|	exp '*' exp {
 /*****************************************************************************************************/
 $$.i_var = ic_gen_temp(0);
- $$.i_code = ic_quad_gen($$.i_var,$1.i_var,$3.i_var,MULT);
+ $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
+// $$.i_code = ic_quad_concat($$.i_code,
+ ic_quad* p_q = ic_quad_gen($$.i_var,$1.i_var,$3.i_var,MULT));
+//branch
+if($1.next != NULL && $3.i_code != NULL)
+   {
+    ic_label_set_code($1.next,$3.i_code);
+   }
+else if($1.next != NULL)
+   {
+       ic_label_set_code($1.next,p_q);
+}else if ($3.next != NULL)
+       ic_label_set_code($3.next,p_q);
+$$.i_code = ic_quad_concat($$.i_code,p_q);
+$$.next = NULL;
 
+
+}
+	|	exp EQ exp {
+/*****************************************************************************************************/
+$$.i_var = ic_gen_temp(0);
+ $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
+ic_label* l_true = ic_new_label_gen(NULL);
+//$$.i_code = ic_quad_concat($$.i_code,
+ic_quad* test_q = ic_quad_gen_gl(l_true,$1.i_var,$3.i_var,IFEQ);
+ic_label* exp_next = NULL;
+if($1.next != NULL)
+    {
+       if($3.i_code == NULL)
+             exp_next = $1.next;
+       else
+           ic_label_set_code($1.next,$3.i_code);
+    }
+if($3.next != NULL)
+    {
+     if(exp_next != NULL)
+	{
+            ic_quad_replace_label($3.i_code,$3.next,$1.next);
+        }
+     else
+          exp_next = $3.next;
+}
+
+if(exp_next != NULL)
+    ic_label_set_code(exp_next,test_q);
+$$.i_code = ic_quad_concat($$.i_code,test_q);
+ic_int_symbol* false_const = ic_gen_temp(0);
+$$.i_code = ic_quad_concat($$.i_code,
+                           ic_quad_gen($$.i_var,false_const,NULL,ASSIGN));
+$$.next = ic_new_label_gen(NULL);
+$$.i_code = ic_quad_concat($$.i_code,
+                           ic_quad_gen_gl($$.next,NULL,NULL,GOTO));
+
+/*$$.i_code = ic_quad_concat($$.i_code,
+                           ic_quad_gen_gl(l_false,NULL,NULL,GOTO));*/
+ic_int_symbol* true_const = ic_gen_temp(1);
+ ic_quad* true_code = ic_quad_gen($$.i_var,true_const,NULL,ASSIGN);
+ ic_label_set_code(l_true,true_code);
+ $$.i_code = ic_quad_concat($$.i_code,true_code);
+
+//
+ fprintf(stderr,"exp EQ exp => printcode\n");
+ic_print_code($$.i_code);
+fprintf(stderr,"end printcode\n");
 
 }
 ;
@@ -308,12 +376,15 @@ assign : ID '=' exp  {
 exit(1);
 }
     else{
-assert($3.i_var != NULL);
-    $$.i_code = ic_quad_concat($3.i_code,
-                               ic_quad_gen(var_lookup($1.str_val)->ic_var,
+    assert($3.i_var != NULL);
+    //
+    ic_quad* q = ic_quad_gen(var_lookup($1.str_val)->ic_var,
                                            $3.i_var,
                                            NULL,
-                                           ASSIGN));
+                                           ASSIGN);
+if($3.next != NULL)
+    ic_label_set_code($3.next,q);
+$$.i_code = ic_quad_concat($3.i_code,q);
 //eventuellement mettre une valeur de retour pour cette instruction : un nouveau temp
 $$.i_var = ic_gen_temp(0);
  $$.i_code = ic_quad_concat($$.i_code,
@@ -355,7 +426,7 @@ int main(int argc,char **argv)
     //do{
     yyparse();
     //}while(!feof(yyin));
-
+    ic_print_code(q_buff);
     icm_print_to_file(argv[2],ic_symb_buff,q_buff);
   //printf("?");
   //return yyparse();

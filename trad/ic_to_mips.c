@@ -69,7 +69,7 @@ void icm_print_stmt(FILE* dest_file,ic_quad i_stm)
     case PLUS:
       fprintf(dest_file,"    lw	$t0, %s\n",(i_stm.arg1)->name);
       fprintf(dest_file,"    lw	$t1, %s\n",(i_stm.arg2)->name);
-      fprintf(dest_file,"    add $t3, $t0, $t1, %s\n",(i_stm.arg2)->name);
+      fprintf(dest_file,"    add $t3, $t0, $t1\n");
       fprintf(dest_file,"    sw $t3, %s\n",((i_stm.dest)->dest_symb)->name);
       break;
     case SKIP:

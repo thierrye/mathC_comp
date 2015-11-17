@@ -26,7 +26,7 @@ typedef struct ic_s{
   bool is_const;
   struct ic_s* next;
 }ic_int_symbol;
-typedef enum{ASSIGN,IFZ_GOTO,GOTO,EQUAL,INFERIOR,PLUS,MULT,SKIP}ic_op;
+typedef enum{ASSIGN,IFZ_GOTO,IFEQ,GOTO,EQUAL,INFERIOR,PLUS,MULT,SKIP}ic_op;
 typedef union {ic_int_symbol* dest_symb; char* dest_label;}ic_q_dest;
 typedef struct ic_q{
   //ic_int_symbol* dest;
@@ -64,6 +64,7 @@ ic_label* ic_label_lookup(char* name);
 void ic_label_set_code(ic_label* l,ic_quad* dest);
 void ic_label_set_quad(ic_label* l,ic_quad* q);
 void ic_backpatch(ic_quad* q1,ic_quad* q2);
+void ic_quad_replace_label(ic_quad* q,ic_label* old_label,ic_label* new_label);
 void ic_print_table();
 void ic_print_code(ic_quad* c);
 
