@@ -190,7 +190,8 @@ ic_quad* ic_quad_gen_gl(ic_label* l,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_o
   ret_q->q_name = NULL;
   ret_q->dest = malloc(sizeof(*(ret_q->dest)));
   //  assert(dest != NULL);
-  ret_q->dest->dest_label = strdup(l->label_name);
+  if(l != NULL)
+      ret_q->dest->dest_label = strdup(l->label_name);
   ret_q->arg1 = arg1;
   ret_q->arg2 = arg2;
   ret_q->op = op;
@@ -294,7 +295,7 @@ void ic_label_set_quad(ic_label* l,ic_quad* q)
     q->q_name = strdup(l->label_name);
   assert(strcmp(q->q_name,l->label_name) == 0);
 }
-void ic_backpatch(ic_quad* q1,ic_quad* q2)
+/*void ic_backpatch(ic_quad* q1,ic_quad* q2)
 {
   ic_quad* scan = q1;
 
@@ -321,13 +322,21 @@ void ic_backpatch(ic_quad* q1,ic_quad* q2)
 	}
       scan = scan->next;
     }
+    }*/
+void ic_backpatch(ic_ql* ql,ic_label* l)
+{
+  while(ql != NULL)
+    {
+      ql->q->dest->dest_label = strdup(l->label_name);
+      ql = ql->next;
+    }
 }
 void ic_quad_replace_label(ic_quad* q,ic_label* old_label,ic_label* new_label)
 {
   ic_quad* scan = q;
   while(scan != NULL)
     {
-      if(scan->op == IFZ_GOTO || scan->op == IFEQ || scan->op == GOTO)
+      if(scan->op == IFZ_GOTO || scan->op == IFEQ_GOTO || scan->op == GOTO)
 	{
 	  if(strcmp(scan->dest->dest_label,old_label->label_name) == 0)
 	    {
@@ -368,7 +377,7 @@ void ic_print_code(ic_quad* code)
   while(c != NULL)
     {
       	  if(c->q_name != NULL)
-	    fprintf(stderr,"labelled statement with label : %s",c->q_name);
+	    fprintf(stderr,"labelled statement with label : %s\n",c->q_name);
 
       switch(c->op)
 	{
@@ -378,34 +387,51 @@ void ic_print_code(ic_quad* code)
 	  assert(c->dest->dest_symb->name != NULL);
 	  assert(c->arg1 != NULL);
 	  assert(c->arg1->name != NULL);
-	  fprintf(stdout,"%s <- %s\n",c->dest->dest_symb->name,c->arg1->name);
+	  fprintf(stdout,"    %s <- %s\n",c->dest->dest_symb->name,c->arg1->name);
 	  break;
 	case IFZ_GOTO:
-	  fprintf(stdout,"if %s == 0 goto %s\n",c->arg1->name,c->dest->dest_label);
+	  fprintf(stdout,"    if %s == 0 goto %s\n",c->arg1->name,c->dest->dest_label);
 	  break;
-	case IFEQ:
-	  fprintf(stdout,"if %s == %s goto %s\n",c->arg1->name,c->arg2->name,c->dest->dest_label);
+	case IFEQ_GOTO:
+	  fprintf(stdout,"    if %s == %s goto %s\n",c->arg1->name,c->arg2->name,c->dest->dest_label);
 	  break;
 	case GOTO:
-	  fprintf(stdout,"goto %s\n",c->dest->dest_label);
+	  fprintf(stdout,"    goto %s\n",c->dest->dest_label);
 	  break;
 	case EQUAL:
-	  fprintf(stdout,"%s <- (%s == %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"    %s <- (%s == %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case INFERIOR:
-	  fprintf(stdout,"%s <- (%s <= %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"    %s <- (%s <= %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case PLUS:
-	  fprintf(stdout,"%s <- (%s + %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"    %s <- (%s + %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  break;
+	case MINUS:
+	  fprintf(stdout,"    %s <- (%s - %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case MULT:
-	  fprintf(stdout,"%s <- (%s * %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
+	  fprintf(stdout,"    %s <- (%s * %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
 	  break;
 	case SKIP:
-	  fprintf(stdout,"skip\n");
+	  fprintf(stdout,"    skip\n");
 	  break;
 	}
       c = c->next;
     }
 }
-	  
+ic_ql* ic_ql_new(ic_quad* q)
+{
+  ic_ql* ret = malloc(sizeof(*ret));
+  ret->q = q;
+  return ret;
+}
+ic_ql* ic_ql_concat(ic_ql* q1,ic_ql* q2)
+{
+  if(q1 == NULL)
+    return q2;
+  while(q1->next != NULL)
+    q1 = q1->next;
+  q1->next = q2;
+  return q1;
+}

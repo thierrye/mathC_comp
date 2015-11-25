@@ -26,7 +26,7 @@ typedef struct ic_s{
   bool is_const;
   struct ic_s* next;
 }ic_int_symbol;
-typedef enum{ASSIGN,IFZ_GOTO,IFEQ,GOTO,EQUAL,INFERIOR,PLUS,MULT,SKIP}ic_op;
+typedef enum{ASSIGN,IFZ_GOTO,IFEQ_GOTO,GOTO,EQUAL,INFERIOR,PLUS,MINUS,MULT,SKIP}ic_op;
 typedef union {ic_int_symbol* dest_symb; char* dest_label;}ic_q_dest;
 typedef struct ic_q{
   //ic_int_symbol* dest;
@@ -42,6 +42,10 @@ typedef struct ic_l{
   ic_quad* q;
   struct ic_l* next;
 }ic_label;
+typedef struct ic_quad_list{
+  ic_quad* q;
+  struct ic_quad_list* next;
+}ic_ql;
 
 extern ic_int_symbol* ic_symb_buff;
 extern ic_label* label_buff;
@@ -63,10 +67,13 @@ ic_label* ic_new_label_gen(ic_quad* q);
 ic_label* ic_label_lookup(char* name);
 void ic_label_set_code(ic_label* l,ic_quad* dest);
 void ic_label_set_quad(ic_label* l,ic_quad* q);
-void ic_backpatch(ic_quad* q1,ic_quad* q2);
+//void ic_backpatch(ic_quad* q1,ic_quad* q2);
+void ic_backpatch(ic_ql* ql,ic_label* l);
 void ic_quad_replace_label(ic_quad* q,ic_label* old_label,ic_label* new_label);
 void ic_print_table();
 void ic_print_code(ic_quad* c);
+ic_ql* ic_ql_new(ic_quad* q);
+ic_ql* ic_ql_concat(ic_ql* q1,ic_ql* q2);
 
 /*****************************************************************************************************
                                       var declaration
