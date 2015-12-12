@@ -81,6 +81,18 @@ void var_print_table()
       fprintf(stderr,"var %s declared line %d\n",tmp.name,tmp.decl_line);
     }
 }
+
+id_s *var_copy(id_s* arg)
+{
+  id_s* ret = malloc(sizeof(*ret));
+  //ret->ic_var = ic_add_symb_s(arg->ic_var->name,arg->ic_var->val,false);//pour matrix allouer avant v_id
+  ret->ic_var = ic_gen_temp(0);
+  ret->t_id = arg->t_id;
+  ret->v_id = arg->v_id;
+  ret->decl_line = arg->decl_line;
+
+  return ret;
+}
 /*****************************************************************************************************
                                intermediate code
 /*****************************************************************************************************/
@@ -188,10 +200,14 @@ ic_quad* ic_quad_gen_gl(ic_label* l,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_o
 {
   ic_quad* ret_q = malloc(sizeof(*ret_q));
   ret_q->q_name = NULL;
-  ret_q->dest = malloc(sizeof(*(ret_q->dest)));
   //  assert(dest != NULL);
   if(l != NULL)
+    {
+      ret_q->dest = malloc(sizeof(*(ret_q->dest)));
       ret_q->dest->dest_label = strdup(l->label_name);
+    }
+  else
+    ret_q->dest = NULL;
   ret_q->arg1 = arg1;
   ret_q->arg2 = arg2;
   ret_q->op = op;
@@ -219,6 +235,23 @@ void ic_quad_set_name(ic_quad* q,char* name)
   assert(name != NULL);
   q->q_name = strdup(name);
 }
+ic_quad* ic_quad_proc_gen(char* proc_name,id_s* first_param)
+{
+  id_s* param_new_id = var_copy(first_param);
+  
+  if(strcmp(proc_name,"print_int") == 0)
+    {
+      //first param shouldn't be null
+      assert(first_param != NULL);
+      ic_quad* q = ic_quad_gen(param_new_id->ic_var,first_param->ic_var,NULL,ASSIGN);
+      return ic_quad_concat(q,
+			    ic_quad_gen(NULL,param_new_id->ic_var,NULL,PRINT_INT));
+    }
+  else{
+    fprintf(stderr,"function name : %s not defined\n",proc_name);
+    return NULL;
+  }
+}
 ic_label* ic_new_label(char* name,ic_quad* q)
 {
   if(label_buff == NULL)
@@ -242,6 +275,7 @@ ic_label* ic_new_label(char* name,ic_quad* q)
 ic_label* ic_new_label_gen(ic_quad* q)
 {
   char *name = malloc(sizeof("label")+4);
+  fprintf(stderr,"ic_new_label_gen :  sizeof(label)+4 : %lu\n",sizeof("label")+4);
   sprintf(name,"label%d",ic_label_n);
   if(q != NULL)
     ic_quad_set_name(q,name);
@@ -327,6 +361,7 @@ void ic_backpatch(ic_ql* ql,ic_label* l)
 {
   while(ql != NULL)
     {
+      ql->q->dest = malloc(sizeof(*(ql->q->dest)));
       ql->q->dest->dest_label = strdup(l->label_name);
       ql = ql->next;
     }
@@ -376,8 +411,8 @@ void ic_print_code(ic_quad* code)
   ic_quad* c = code;
   while(c != NULL)
     {
-      	  if(c->q_name != NULL)
-	    fprintf(stderr,"labelled statement with label : %s\n",c->q_name);
+      if(c->q_name != NULL)
+	fprintf(stderr,"labelled statement with label : %s\n",c->q_name);
 
       switch(c->op)
 	{
@@ -393,10 +428,18 @@ void ic_print_code(ic_quad* code)
 	  fprintf(stdout,"    if %s == 0 goto %s\n",c->arg1->name,c->dest->dest_label);
 	  break;
 	case IFEQ_GOTO:
-	  fprintf(stdout,"    if %s == %s goto %s\n",c->arg1->name,c->arg2->name,c->dest->dest_label);
+	  if(c->dest != NULL)
+	    fprintf(stdout,"    if %s == %s goto %s\n",c->arg1->name,c->arg2->name,c->dest->dest_label);
+	  else
+	    fprintf(stdout,"    if %s == %s goto null\n",c->arg1->name,c->arg2->name);
+
 	  break;
 	case GOTO:
-	  fprintf(stdout,"    goto %s\n",c->dest->dest_label);
+	  if(c->dest != NULL)
+	    fprintf(stdout,"    goto %s\n",c->dest->dest_label);
+	  else
+	    fprintf(stdout,"    goto null\n");
+
 	  break;
 	case EQUAL:
 	  fprintf(stdout,"    %s <- (%s == %s)\n",c->dest->dest_symb->name,c->arg1->name,c->arg2->name);
@@ -424,6 +467,7 @@ ic_ql* ic_ql_new(ic_quad* q)
 {
   ic_ql* ret = malloc(sizeof(*ret));
   ret->q = q;
+  ret->next = NULL;
   return ret;
 }
 ic_ql* ic_ql_concat(ic_ql* q1,ic_ql* q2)
@@ -434,4 +478,13 @@ ic_ql* ic_ql_concat(ic_ql* q1,ic_ql* q2)
     q1 = q1->next;
   q1->next = q2;
   return q1;
+}
+fd_param* fd_new_param(char* id)
+{
+  fd_param* ret = malloc(sizeof(*ret));
+  ret->val = var_lookup(id);
+  //ret->param_typ = 
+  ret->next = NULL;
+
+  return ret;
 }

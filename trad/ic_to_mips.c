@@ -89,9 +89,17 @@ void icm_print_stmt(FILE* dest_file,ic_quad i_stm)
       fprintf(dest_file,"    mul $t2, $t0, $t1\n");
       fprintf(dest_file,"    sw $t2, %s\n",((i_stm.dest)->dest_symb)->name);
       break;
+    case PRINT_INT:
+      fprintf(dest_file,"    li $v0, 1\n");
+      fprintf(dest_file,"    lw $a0, %s\n",(i_stm.arg1)->name);
+      fprintf(dest_file,"    syscall\n");
     case SKIP:
       fprintf(dest_file,"    nop\n");
       break;
+    default :
+      fprintf(stderr,"error operator not an existing operator\n");
+      break;
+	
     }
 }
       

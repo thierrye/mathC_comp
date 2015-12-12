@@ -47,6 +47,10 @@ ic_quad* q_buff;
 	     typ_m t;
 	     int line;
 	 }typ_val;
+	 struct{
+	     fd_param *param;
+	     int line;
+	 }fun_param;
 }
 			
 %token IF WHILE FOR
@@ -62,7 +66,8 @@ ic_quad* q_buff;
 %token <id_val> ID
 %type <iexp_val> iexp
 %type <bexp_val> bool_exp
-%type <stmt_val>	 assign var_decl if_stmt while_stmt atom_stm stm_list prog
+%type <stmt_val> proc_call assign var_decl if_stmt while_stmt atom_stm stm_list prog
+%type <fun_param> param
 %error-verbose
 %start prog
 			
@@ -89,15 +94,16 @@ ic_print_code($1.i_code);*/
 stm_list :    atom_stm {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
-    //fprintf(stderr,"stm_list : atom_stm -> line %d\n",src_line);
+    fprintf(stderr,"stm_list : atom_stm -> line %d\n",src_line);
     $$.i_code = $1.i_code;
     $$.next_list = $1.next_list;
-    //ic_print_code($1.i_code);
+    ic_print_code($1.i_code);
 }
 | stm_list atom_stm   {
 /*****************************************************************************************************/
 //v_append($$.vars_d,$1,$2);???
  //fprintf(stderr,"stm_list :atom_stm stm_list -> line %d\n",src_line);
+fprintf(stderr,"stm_list :atom_stm stm_list\n");
      $$.i_code =  ic_quad_concat($1.i_code,$2.i_code);
 
      if($1.next_list != NULL)
@@ -106,8 +112,10 @@ stm_list :    atom_stm {
 	 {
              ic_label* l = ic_new_label_gen($2.i_code);
              ic_backpatch($1.next_list,l);
-         }else
+             $$.next_list = NULL;
+         }else{
              $$.next_list = $1.next_list;
+         }
      }else{
         $$.next_list = $2.next_list;
     }
@@ -133,8 +141,6 @@ atom_stm : var_decl ';'  {
 }
 	|	';'        {
 /*****************************************************************************************************/
-//	    fprintf(stderr,"quedale\n");
-
 /*$$.i_code = NULL;
 $$.next = NULL;*/
     $$.i_code = ic_quad_gen(NULL,NULL,NULL,SKIP);
@@ -161,6 +167,12 @@ $$.next = NULL;*/
     $$.i_code = $1.i_code;
     $$.next_list = $1.next_list;
 //fprintf(stderr,"while statement \n");ic_print_code($$.i_code);
+}
+	|	proc_call ';' {
+/*****************************************************************************************************/
+    $$.i_code = $1.i_code;
+assert($1.i_code != NULL);
+    $$.next_list = NULL;
 }
 ;
 
@@ -202,6 +214,9 @@ while_stmt : WHILE '(' bool_exp ')' atom_stm {
 
     $$.next_list = $3.false_list;
 
+//debug
+    fprintf(stderr,"while_stmt : printcode\n");
+ic_print_code($$.i_code);
 };
 
 
@@ -342,6 +357,7 @@ fprintf(stderr,"end printcode\n");
 }
 	| iexp DIFF iexp {
 /*****************************************************************************************************/
+	    fprintf(stderr,"yacc : DIFF\n");
     $$.i_var = ic_gen_temp(0);
     $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
     ic_label* l_false = ic_new_label_gen(NULL);
@@ -356,13 +372,18 @@ fprintf(stderr,"end printcode\n");
 
     $$.true_list = ic_ql_new(ic_quad_gen_gl(NULL,NULL,NULL,GOTO));
     $$.i_code = ic_quad_concat($$.i_code,$$.true_list->q);
+    assert($$.true_list->q->dest == NULL);
 //case exp1 == exp2
     ic_quad* false_q = ic_quad_gen($$.i_var,const_false,NULL,ASSIGN);
     ic_label_set_code(l_false,false_q);
     $$.i_code = ic_quad_concat($$.i_code,false_q);
     $$.false_list = ic_ql_new(ic_quad_gen_gl(NULL,NULL,NULL,GOTO));
     $$.i_code = ic_quad_concat($$.i_code,$$.false_list->q);
-    
+    assert($$.false_list->q->dest == NULL);
+
+fprintf(stderr,"exp DIFF exp => printcode\n");
+ic_print_code($$.i_code);
+fprintf(stderr,"end printcode\n");
 
 
 //
@@ -385,6 +406,8 @@ fprintf(stderr,"end printcode\n");
 //    $$.next_list = NULL;
 }
 ;
+
+
 assign : ID '=' iexp  {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
@@ -416,6 +439,28 @@ $$.next = NULL;*/
 }
 ;
 
+proc_call : ID '(' param ')'  {
+/*****************************************************************************************************/
+/*****************************************************************************************************/
+    $$.i_code = ic_quad_proc_gen($1.str_val,$3.param->val);
+    $$.i_var = NULL;
+    $$.next_list = NULL;
+
+}
+;
+param : ID {
+/*****************************************************************************************************/
+/*****************************************************************************************************/
+    if(var_is_global($1.str_val))
+    {
+        $$.param = fd_new_param($1.str_val);
+        $$.line = $1.line;
+    }else{
+        fprintf(stderr,"var %s not declared\n",$1.str_val);
+        exit(1);
+    }
+
+}
 %%
 
 extern int yylex();
@@ -449,6 +494,8 @@ int main(int argc,char **argv)
     yyparse();
     //}while(!feof(yyin));
     ic_print_code(q_buff);
+    assert(ic_symb_buff != NULL);
+    assert(q_buff != NULL);
     icm_print_to_file(argv[2],ic_symb_buff,q_buff);
   //printf("?");
   //return yyparse();

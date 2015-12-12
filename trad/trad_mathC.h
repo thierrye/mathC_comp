@@ -6,6 +6,7 @@
 #define TYPE_NUMBER 3
 #define MAX_SYMB_SIZE 100
 #define MAX_IC_NUM 100
+#define MAX_FUN_PARAM 1
 
 /*****************************************************************************************************
                                       type declaration
@@ -26,7 +27,12 @@ typedef struct ic_s{
   bool is_const;
   struct ic_s* next;
 }ic_int_symbol;
-typedef enum{ASSIGN,IFZ_GOTO,IFEQ_GOTO,GOTO,EQUAL,INFERIOR,PLUS,MINUS,MULT,SKIP}ic_op;
+typedef enum{ASSIGN,
+	     IFZ_GOTO,IFEQ_GOTO,GOTO,
+	     EQUAL,INFERIOR,SUPERIOR,
+	     PLUS,MINUS,MULT,
+	     PRINT_INT,PRINTF,PRINTMAT,
+	     SKIP}ic_op;
 typedef union {ic_int_symbol* dest_symb; char* dest_label;}ic_q_dest;
 typedef struct ic_q{
   //ic_int_symbol* dest;
@@ -98,8 +104,32 @@ int var_is_global(char *str);
 int var_add_global(id_s v);
 int var_is_declared(char *str);
 id_s *var_lookup(char *str);
+id_s *var_copy(id_s* arg);
 id_s new_id_s(char *str,typ_m t,int line);
 void var_print_table();
+
+/*****************************************************************************************************
+                               function declaration
+******************************************************************************************************/
+//typedef enum fd_typ{INT ,FLOAT, MATRIX, VOID};
+
+typedef struct fd_param{
+  id_s* val;
+  //typ_m param_typ;
+  struct fd_param *next;
+}fd_param;
+
+typedef struct fd_id{
+  //typ_m  fun_typ;
+  char *name;
+  fd_param* p;
+  struct fd_id* next;
+}fd_id;
+
+//char* std_proc_name[3] = {"print", "printf", "printmat"};
+
+fd_param* fd_new_param(char* id);
+ic_quad* ic_quad_proc_gen(char* proc_name,id_s *first_param);
 
 /*****************************************************************************************************
                                statement block
