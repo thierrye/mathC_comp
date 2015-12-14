@@ -71,6 +71,12 @@ id_s new_id_s(char *str,typ_m t,int line)
     var.t_id = t;
 
     var.decl_line = line;
+    ic_symb_val dummy;
+    /*if(t == INT)
+      dummy.i_val = 0;
+    else
+    dummy.f_val = 0.0;*/
+    var.ic_var = ic_gen_temp(t);
     return var;
 }
 void var_print_table()
@@ -96,14 +102,16 @@ id_s *var_copy(id_s* arg)
 /*****************************************************************************************************
                                intermediate code
 /*****************************************************************************************************/
-ic_int_symbol* ic_symb_buff = NULL;
+ic_symbol* ic_symb_buff = NULL;
 int ic_n_temp = 0;
 int ic_label_n = 0;
 ic_label* label_buff = NULL;
+ic_symb_val true_val;
+ic_symb_val false_val;
 
-ic_int_symbol* ic_gen_temp(int val)
+ic_symbol* ic_gen_temp_const(ic_symb_val val,typ_m type)
 {
-  ic_int_symbol* new_tmp = malloc(sizeof(*new_tmp));
+  ic_symbol* new_tmp = malloc(sizeof(*new_tmp));
   new_tmp->name = malloc(sizeof("temp")+4);
   sprintf(new_tmp->name,"temp%d",ic_n_temp);
 
@@ -114,27 +122,55 @@ ic_int_symbol* ic_gen_temp(int val)
     }
   new_tmp->val = val;
   new_tmp->next = NULL;
+  new_tmp->type = type;
   ic_add_symb(new_tmp);
   return new_tmp;
 }
-void ic_add_symb(ic_int_symbol* next)
+ic_symbol* ic_gen_temp(typ_m type)
+{
+  ic_symb_val dummy;
+  if(type == INT)
+      dummy.i_val = 0;
+  else
+    dummy.f_val = 0.0;
+  return ic_gen_temp_const(dummy,type);
+}
+  
+//return NULL if type of dest and src are not compatible
+ic_quad* ic_symb_conv(ic_symbol* dest,ic_symbol* src)
+{
+  if(dest->type == src->type)
+    return ic_quad_gen(dest,src,NULL,ASSIGN);
+  ic_quad* ret;
+  if(dest->type == FLOAT && src->type == INT)
+    {
+      return ic_quad_gen(dest,src,NULL,ITOF);
+    }
+  if(dest->type == INT && src->type == FLOAT)
+    {
+      return ic_quad_gen(dest,src,NULL,FTOI);
+    }
+  return NULL;
+}
+  
+void ic_add_symb(ic_symbol* next)
 {
   if(ic_symb_buff == NULL)
     ic_symb_buff = next;
   else{
-    ic_int_symbol* scan = ic_symb_buff;
+    ic_symbol* scan = ic_symb_buff;
     while(scan->next != NULL)
       scan = scan->next;
     scan->next = next;
   }
 }
 
-ic_int_symbol* ic_lookup(char *str)
+ic_symbol* ic_lookup(char *str)
 {
   if(ic_symb_buff == NULL)
     return NULL;
   
-  ic_int_symbol *scan = ic_symb_buff;
+  ic_symbol *scan = ic_symb_buff;
   while(scan != NULL)
     {
       if(strcmp(scan->name,str) == 0)
@@ -143,7 +179,7 @@ ic_int_symbol* ic_lookup(char *str)
     }
   return NULL;
 }
-ic_int_symbol* ic_add_symb_s(char* name,int val,bool is_const)
+/*ic_symbol* ic_add_symb_s(char* name,int val,bool is_const)
 {
   if(ic_symb_buff == NULL)
     {
@@ -155,7 +191,7 @@ ic_int_symbol* ic_add_symb_s(char* name,int val,bool is_const)
       return ic_symb_buff;
     }
   
-  ic_int_symbol *scan = ic_symb_buff;
+  ic_symbol *scan = ic_symb_buff;
   while(scan->next != NULL)
     scan = scan->next;
   scan->next = malloc(sizeof(*scan));
@@ -164,8 +200,8 @@ ic_int_symbol* ic_add_symb_s(char* name,int val,bool is_const)
   scan->next->is_const = is_const;
   scan->next->next = NULL;
   return scan->next;
-}
-ic_quad* ic_quad_gen(ic_int_symbol* dest,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op)
+  }*/
+ic_quad* ic_quad_gen(ic_symbol* dest,ic_symbol* arg1,ic_symbol* arg2,ic_op op)
 {
   ic_quad* ret_q = malloc(sizeof(*ret_q));
   ret_q->q_name = NULL;
@@ -182,7 +218,7 @@ ic_quad* ic_quad_gen(ic_int_symbol* dest,ic_int_symbol* arg1,ic_int_symbol* arg2
   return ret_q;
 }
 //gen of a GOTO statement
-ic_quad* ic_quad_gen_g(char* dest,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op)
+ic_quad* ic_quad_gen_g(char* dest,ic_symbol* arg1,ic_symbol* arg2,ic_op op)
 {
   ic_quad* ret_q = malloc(sizeof(*ret_q));
   ret_q->q_name = NULL;
@@ -196,7 +232,7 @@ ic_quad* ic_quad_gen_g(char* dest,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op 
 
   return ret_q;
 }
-ic_quad* ic_quad_gen_gl(ic_label* l,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op)
+ic_quad* ic_quad_gen_gl(ic_label* l,ic_symbol* arg1,ic_symbol* arg2,ic_op op)
 {
   ic_quad* ret_q = malloc(sizeof(*ret_q));
   ret_q->q_name = NULL;
@@ -247,6 +283,13 @@ ic_quad* ic_quad_proc_gen(char* proc_name,id_s* first_param)
       return ic_quad_concat(q,
 			    ic_quad_gen(NULL,param_new_id->ic_var,NULL,PRINT_INT));
     }
+  else if(strcmp(proc_name,"print_float") == 0)
+    {
+      ic_quad* q = ic_quad_gen(param_new_id->ic_var,first_param->ic_var,NULL,ASSIGN);
+      return ic_quad_concat(q,
+			    ic_quad_gen(NULL,param_new_id->ic_var,NULL,PRINT_FLOAT));
+    }
+
   else{
     fprintf(stderr,"function name : %s not defined\n",proc_name);
     return NULL;
@@ -275,7 +318,6 @@ ic_label* ic_new_label(char* name,ic_quad* q)
 ic_label* ic_new_label_gen(ic_quad* q)
 {
   char *name = malloc(sizeof("label")+4);
-  fprintf(stderr,"ic_new_label_gen :  sizeof(label)+4 : %lu\n",sizeof("label")+4);
   sprintf(name,"label%d",ic_label_n);
   if(q != NULL)
     ic_quad_set_name(q,name);
@@ -387,21 +429,27 @@ void ic_print_table()
 {
   fprintf(stderr,"printing intermediate code table!\n");
 
-  ic_int_symbol* scan = ic_symb_buff;
+  ic_symbol* scan = ic_symb_buff;
   if(scan == NULL)
     {
       fprintf(stderr,"empty intermediate code table\n");
     }
   else{
-    fprintf(stderr,"ic var : %s val :%d \n",
-	    scan->name,
-	    scan->val);
     while(scan->next != NULL)
       {
+	if(scan->type == INT)
+	  {
+	    fprintf(stderr,"ic var : %s val :%d \n",
+		    scan->name,
+		    scan->val.i_val);
+	  }
+	else if (scan->type == FLOAT)
+	  {
+	    fprintf(stderr,"ic var : %s val :%f \n",
+		    scan->name,
+		    scan->val.f_val);
+	  }	    
 	scan = scan->next;
-	fprintf(stderr,"ic var : %s val :%d \n",
-		scan->name,
-		scan->val);	
       }
   }
 }

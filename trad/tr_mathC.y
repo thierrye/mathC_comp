@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 
 #include "trad_mathC.h"
 #include "ic_to_mips.h"
@@ -21,32 +22,32 @@ ic_quad* q_buff;
              char* str_val;
 	     int line;
          }id_val;
-	 int int_val;
 	 struct{
 	     ic_quad *i_code;
-	     ic_int_symbol *i_var;
-	     //ic_label* exp_true;
-	     //ic_label* exp_false;
+	     ic_symbol *i_var;
 	     //ic_ql* true_list;
 	     //ic_ql* false_list;
 	     //ic_label* next;
-	 }iexp_val;
+	 }exp_val;
 	 struct{
 	     ic_quad *i_code;
-	     ic_int_symbol *i_var;
+	     ic_symbol *i_var;
 	     ic_ql* true_list;
 	     ic_ql* false_list;
 	 }bexp_val;	     
 	 struct{
 	     ic_quad *i_code;
-	     ic_int_symbol *i_var;
+	     ic_symbol *i_var;
     	     ic_ql* next_list;
          }stmt_val;
-	 float f_val;
 	 struct{
 	     typ_m t;
 	     int line;
 	 }typ_val;
+         struct{
+	     typ_m type;
+	     ic_symb_val val;
+	 }const_val;
 	 struct{
 	     fd_param *param;
 	     int line;
@@ -57,53 +58,66 @@ ic_quad* q_buff;
 %nonassoc "then"
 %right ELSE
 %token <typ_val> TYPE 
-%token <int_val> CONST_VAL
+%token <const_val> CONST_TOKEN
 %left OR AND
 %nonassoc EQ DIFF
 %left '!'
 %left '+' '-'
 %left '*'
 %token <id_val> ID
-%type <iexp_val> iexp
+%type <exp_val> exp
 %type <bexp_val> bool_exp
-%type <stmt_val> proc_call assign var_decl if_stmt while_stmt atom_stm stm_list prog
+%type <stmt_val> proc_call assign var_decl if_stmt while_stmt atom_stm stm_list prog bloc_stm
 %type <fun_param> param
 %error-verbose
 %start prog
 			
 %%
 
-prog : stm_list {
+prog : TYPE ID '(' ')' bloc_stm {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
 /*var_print_table();
 ic_print_table();
 ic_print_code($1.i_code);*/
-    q_buff = $1.i_code;
-    if($1.next_list != NULL)
+    if($1.t == INT && strcmp($2.str_val,"main") == 0)
     {
-        ic_quad* sup_stmt = ic_quad_gen(NULL,NULL,NULL,SKIP);
-        ic_label* l = ic_new_label_gen(sup_stmt);
-	ic_backpatch($1.next_list,l);
+        q_buff = $5.i_code;
+        if($5.next_list != NULL)
+        {
+            ic_quad* sup_stmt = ic_quad_gen(NULL,NULL,NULL,SKIP);
+            ic_label* l = ic_new_label_gen(sup_stmt);
+	    ic_backpatch($5.next_list,l);
         //ic_label_set_code($1.next,sup_stmt);
-        q_buff = ic_quad_concat(q_buff,sup_stmt);
+            q_buff = ic_quad_concat(q_buff,sup_stmt);
+        }
+      
+    }else{
+        fprintf(stderr,"only main function allowed\n");
     }
 
 }
-
+;
+bloc_stm : '{' stm_list '}' {
+/*****************************************************************************************************/
+/*****************************************************************************************************/
+    $$.i_code = $2.i_code;
+    $$.next_list = $2.next_list;
+}
+;
 stm_list :    atom_stm {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
-    fprintf(stderr,"stm_list : atom_stm -> line %d\n",src_line);
+    //fprintf(stderr,"stm_list : atom_stm -> line %d\n",src_line);
     $$.i_code = $1.i_code;
     $$.next_list = $1.next_list;
-    ic_print_code($1.i_code);
+//    ic_print_code($1.i_code);
 }
 | stm_list atom_stm   {
 /*****************************************************************************************************/
 //v_append($$.vars_d,$1,$2);???
  //fprintf(stderr,"stm_list :atom_stm stm_list -> line %d\n",src_line);
-fprintf(stderr,"stm_list :atom_stm stm_list\n");
+
      $$.i_code =  ic_quad_concat($1.i_code,$2.i_code);
 
      if($1.next_list != NULL)
@@ -215,8 +229,8 @@ while_stmt : WHILE '(' bool_exp ')' atom_stm {
     $$.next_list = $3.false_list;
 
 //debug
-    fprintf(stderr,"while_stmt : printcode\n");
-ic_print_code($$.i_code);
+    //fprintf(stderr,"while_stmt : printcode\n");
+//ic_print_code($$.i_code);
 };
 
 
@@ -225,23 +239,23 @@ var_decl : TYPE ID   {
 /*****************************************************************************************************/
     //fprintf(stderr,"simple var declaration of %s\n",$2.str_val);
     id_s v = new_id_s($2.str_val,$1.t,$1.line);
-    v.ic_var = ic_gen_temp(0);
+//    v.ic_var = ic_gen_temp(0,$1.t);
 
     if(!var_add_global(v))
     {
-        fprintf(stderr,"Error : var %s already declared\n",$2.str_val);
+        fprintf(stderr,"Error : var %s already declared line : %d\n",$2.str_val,$1.line);
         exit(1);
     }
     $$.i_code = NULL;
     $$.next_list = NULL;
 
 }
-	|	TYPE ID '=' iexp   {
+	|	TYPE ID '=' exp   {
 /*****************************************************************************************************/
     //fprintf(stderr,"var declaration and assignment of %s\n",$2.str_val);
     id_s v = new_id_s($2.str_val,$1.t,$1.line);
-    v.ic_var = ic_gen_temp(0);
-    assert(v.ic_var != NULL);
+//    v.ic_var = ic_gen_temp(0,$1.t);
+    //assert(v.ic_var != NULL);
 
     if(!var_add_global(v))
     {
@@ -249,17 +263,24 @@ var_decl : TYPE ID   {
         exit(1);
     }
     else{
+        ic_quad* q;
+        
         assert(v.ic_var != NULL);
         assert($4.i_var != NULL);
-        ic_quad* q = ic_quad_gen(v.ic_var,$4.i_var,NULL,ASSIGN);
+        q = ic_symb_conv(v.ic_var,$4.i_var);
+        if(q == NULL)
+	{
+            fprintf(stderr,"line %d : type not compatible\n",$1.line);
+            exit(1);
+        }
         $$.i_code = ic_quad_concat($4.i_code,q);
-
         $$.next_list = NULL;
     }
 }
 ;
 
-iexp : '('  iexp ')' {
+
+exp : '('  exp ')' {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
 $$.i_var = $2.i_var;
@@ -280,41 +301,60 @@ $$.i_code = $2.i_code;
 
     }
 }
-	|	CONST_VAL  {
+	|	CONST_TOKEN  {
 /*****************************************************************************************************/
 //    fprintf(stderr,"exp lval\n");
-    $$.i_var = ic_gen_temp($1);
+    $$.i_var = ic_gen_temp_const($1.val,$1.type);
     $$.i_code = NULL;
 //    $$.next_list = NULL;
 
 }
-	|	iexp '+' iexp {
+	|	exp '+' exp {
 /*****************************************************************************************************/
-    $$.i_var = ic_gen_temp(0);
+    $$.i_var = ic_gen_temp($1.i_var->type);
     $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
-    ic_quad* p_q = ic_quad_gen($$.i_var,$1.i_var,$3.i_var,PLUS);
-    $$.i_code = ic_quad_concat($$.i_code,p_q);
+    if($1.i_var->type != $3.i_var->type)
+    {
+        ic_symbol* tmp = ic_gen_temp($1.i_var->type);
+        $$.i_code = ic_quad_concat($$.i_code,ic_symb_conv(tmp,$3.i_var));
+        $$.i_code = ic_quad_concat($$.i_code,ic_quad_gen($$.i_var,$1.i_var,tmp,PLUS));
+    }else{
+        $$.i_code = ic_quad_concat($$.i_code,ic_quad_gen($$.i_var,$1.i_var,$3.i_var,PLUS));
+    }
+//    $$.next_list = NULL;
+}
+	|	exp '-' exp {
+/*****************************************************************************************************/
+//fprintf(stderr,"MINUS\n");
+
+
+    $$.i_var = ic_gen_temp($1.i_var->type);
+    $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
+    if($1.i_var->type != $3.i_var->type)
+    {
+        ic_symbol* tmp = ic_gen_temp($1.i_var->type);
+        $$.i_code = ic_quad_concat($$.i_code,ic_symb_conv(tmp,$3.i_var));
+        $$.i_code = ic_quad_concat($$.i_code,ic_quad_gen($$.i_var,$1.i_var,tmp,MINUS));
+    }else{
+        $$.i_code = ic_quad_concat($$.i_code,ic_quad_gen($$.i_var,$1.i_var,$3.i_var,MINUS));
+    }
 
 //    $$.next_list = NULL;
 }
-	|	iexp '-' iexp {
+	|	exp '*' exp {
 /*****************************************************************************************************/
-fprintf(stderr,"MINUS\n");
-
-
-    $$.i_var = ic_gen_temp(0);
+    $$.i_var = ic_gen_temp($1.i_var->type);
     $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
-    ic_quad* p_q = ic_quad_gen($$.i_var,$1.i_var,$3.i_var,MINUS);
-    $$.i_code = ic_quad_concat($$.i_code,p_q);
+    if($1.i_var->type != $3.i_var->type)
+    {
+        ic_symbol* tmp = ic_gen_temp($1.i_var->type);
+        $$.i_code = ic_quad_concat($$.i_code,ic_symb_conv(tmp,$3.i_var));
+        $$.i_code = ic_quad_concat($$.i_code,ic_quad_gen($$.i_var,$1.i_var,tmp,MULT));
+    }else{
+	//fprintf(stderr,"exp '*' exp\n");
+        $$.i_code = ic_quad_concat($$.i_code,ic_quad_gen($$.i_var,$1.i_var,$3.i_var,MULT));
+    }
 
-//    $$.next_list = NULL;
-}
-	|	iexp '*' iexp {
-/*****************************************************************************************************/
-    $$.i_var = ic_gen_temp(0);
-    $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
-    ic_quad* p_q = ic_quad_gen($$.i_var,$1.i_var,$3.i_var,MULT);
-    $$.i_code = ic_quad_concat($$.i_code,p_q);
 //    $$.next_list = NULL;
 
 }
@@ -327,15 +367,15 @@ bool_exp : '(' bool_exp ')' {
     $$.false_list = $2.false_list;
     $$.i_code = $2.i_code;
 }
-        |  iexp EQ iexp {
+        |  exp EQ exp {
 /*****************************************************************************************************/
-    $$.i_var = ic_gen_temp(0);
+    $$.i_var = ic_gen_temp(INT);
     $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
     ic_label* l_true = ic_new_label_gen(NULL);
     ic_quad* test_q = ic_quad_gen_gl(l_true,$1.i_var,$3.i_var,IFEQ_GOTO);
     $$.i_code = ic_quad_concat($$.i_code,test_q);
-    ic_int_symbol* const_true = ic_gen_temp(1);
-    ic_int_symbol* const_false = ic_gen_temp(0);
+    ic_symbol* const_true = ic_gen_temp_const(true_val,INT);
+    ic_symbol* const_false = ic_gen_temp_const(false_val,INT);
     ic_quad* false_q = ic_quad_gen($$.i_var,const_false,NULL,ASSIGN);
     $$.i_code = ic_quad_concat($$.i_code,false_q);
     $$.false_list = ic_ql_new(ic_quad_gen_gl(NULL,NULL,NULL,GOTO));
@@ -350,22 +390,21 @@ bool_exp : '(' bool_exp ')' {
 
 
 //
- fprintf(stderr,"exp EQ exp => printcode\n");
+ /*fprintf(stderr,"exp EQ exp => printcode\n");
 ic_print_code($$.i_code);
 fprintf(stderr,"end printcode\n");
-
+*/
 }
-	| iexp DIFF iexp {
+	| exp DIFF exp {
 /*****************************************************************************************************/
-	    fprintf(stderr,"yacc : DIFF\n");
-    $$.i_var = ic_gen_temp(0);
+    $$.i_var = ic_gen_temp(INT);
     $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
     ic_label* l_false = ic_new_label_gen(NULL);
     ic_quad* test_q = ic_quad_gen_gl(l_false,$1.i_var,$3.i_var,IFEQ_GOTO);
     $$.i_code = ic_quad_concat($$.i_code,test_q);
 
-    ic_int_symbol* const_true = ic_gen_temp(1);
-    ic_int_symbol* const_false = ic_gen_temp(0);
+    ic_symbol* const_true = ic_gen_temp_const(true_val,INT);
+    ic_symbol* const_false = ic_gen_temp_const(false_val,INT);
 // exp1 != exp2 case
     ic_quad* true_q = ic_quad_gen($$.i_var,const_true,NULL,ASSIGN);
     $$.i_code = ic_quad_concat($$.i_code,true_q);
@@ -381,9 +420,9 @@ fprintf(stderr,"end printcode\n");
     $$.i_code = ic_quad_concat($$.i_code,$$.false_list->q);
     assert($$.false_list->q->dest == NULL);
 
-fprintf(stderr,"exp DIFF exp => printcode\n");
-ic_print_code($$.i_code);
-fprintf(stderr,"end printcode\n");
+//fprintf(stderr,"exp DIFF exp => printcode\n");
+//ic_print_code($$.i_code);
+//fprintf(stderr,"end printcode\n");
 
 
 //
@@ -398,6 +437,17 @@ fprintf(stderr,"end printcode\n");
     $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
 //    $$.next_list = NULL;
 }
+	| 	bool_exp AND bool_exp  {
+/*****************************************************************************************************/
+/*****************************************************************************************************/
+    ic_label* true_1 = ic_new_label_gen($3.i_code);
+    ic_backpatch($1.true_list,true_1);
+    $$.false_list = ic_ql_concat($1.false_list,$3.false_list);
+    $$.true_list = $3.true_list;
+    $$.i_code = ic_quad_concat($1.i_code,$3.i_code);
+
+//    $$.next_list = NULL;
+}
       |  '!' bool_exp  {
 /*****************************************************************************************************/
     $$.true_list = $2.false_list;
@@ -408,13 +458,9 @@ fprintf(stderr,"end printcode\n");
 ;
 
 
-assign : ID '=' iexp  {
+assign : ID '=' exp  {
 /*****************************************************************************************************/
 /*****************************************************************************************************/
-    fprintf(stderr,"assigning %s \n",$1.str_val);
-    fprintf(stderr,"assign code :\n");
-ic_print_code($3.i_code);
-
 
     if(!var_is_global($1.str_val))
     {
@@ -424,12 +470,17 @@ ic_print_code($3.i_code);
     else{
         assert($3.i_var != NULL);
     //
-        ic_quad* q = ic_quad_gen(var_lookup($1.str_val)->ic_var,
-                                           $3.i_var,
-                                           NULL,
-                                           ASSIGN);
-        $$.i_code = ic_quad_concat($3.i_code,q);
-        $$.next_list = NULL;
+        if(var_lookup($1.str_val)->t_id == $3.i_var->type)
+	{
+            $$.i_code = ic_quad_concat($3.i_code,ic_quad_gen(var_lookup($1.str_val)->ic_var,
+                                    $3.i_var,
+                                    NULL,
+                                    ASSIGN));
+            $$.next_list = NULL;
+        }else{
+            $$.i_code = ic_quad_concat($3.i_code,ic_symb_conv(var_lookup($1.str_val)->ic_var,$3.i_var));
+            $$.next_list = NULL;
+        }
     } 
 //eventuellement mettre une valeur de retour pour cette instruction : un nouveau temp
 /*$$.i_var = ic_gen_temp(0);
@@ -478,6 +529,8 @@ int main(int argc,char **argv)
     //BLOCK_LEVEL = 0;
     curr_glob_var_number = 0;
     src_line = 0;
+    true_val.i_val = 1;
+    false_val.i_val = 0;
     
     if(argc >= 2)
     { 

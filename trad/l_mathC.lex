@@ -13,7 +13,7 @@ int src_line;
 
 id_type_keyw        [a-zA-Z_][a-zA-Z_0-9]*
 integer             [0-9]+
-
+float               [0-9]+\.[0-9]*
 
 %%
 
@@ -56,12 +56,23 @@ integer             [0-9]+
 
 {integer}      {
   /***************************************************************************************************/
-  fprintf(stderr,"integer :%s \n",yytext);
-  yylval.int_val = atoi(yytext);
-  return CONST_VAL;
+  //fprintf(stderr,"integer :%s \n",yytext);
+  yylval.const_val.val.i_val = atoi(yytext);
+  yylval.const_val.type = INT;
+  return CONST_TOKEN;
 
- }
+}
 
+{float}     {
+  /***************************************************************************************************/
+  yylval.const_val.val.f_val = atof(yytext);
+  yylval.const_val.type = FLOAT;
+  return CONST_TOKEN;
+
+}
+
+
+  
 [{};+/=*()!-]      {
   /***************************************************************************************************/
   //fprintf(stderr,"token :%s \n",yytext);
@@ -75,11 +86,10 @@ integer             [0-9]+
 
 \!=  {
   /***************************************************************************************************/
-  fprintf(stderr,"lex : DIFF : %s \n",yytext);
   return DIFF;
 }
 
-'|''|'  {
+[|][|]  {
   /***************************************************************************************************/
   return OR;
 }

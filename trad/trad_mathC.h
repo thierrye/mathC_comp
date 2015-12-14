@@ -21,25 +21,33 @@ typ_m str_to_type_m(char * str);
 /*****************************************************************************************************
                                  intermediate code
 ******************************************************************************************************/
+typedef union{int i_val;float f_val;}ic_symb_val;
 typedef struct ic_s{
   char* name;
-  int val;
+  typ_m type;
+  ic_symb_val val;
   bool is_const;
   struct ic_s* next;
-}ic_int_symbol;
+}ic_symbol;
+typedef struct ic_symbol_list{
+  ic_symbol* s;
+  struct ic_symbol_list* next;
+}ic_symbol_list;
+
 typedef enum{ASSIGN,
 	     IFZ_GOTO,IFEQ_GOTO,GOTO,
 	     EQUAL,INFERIOR,SUPERIOR,
 	     PLUS,MINUS,MULT,
-	     PRINT_INT,PRINTF,PRINTMAT,
+	     PRINT_INT,PRINT_FLOAT,PRINTF,PRINTMAT,
+	     ITOF,FTOI,
 	     SKIP}ic_op;
-typedef union {ic_int_symbol* dest_symb; char* dest_label;}ic_q_dest;
+typedef union {ic_symbol* dest_symb; char* dest_label;}ic_q_dest;
 typedef struct ic_q{
-  //ic_int_symbol* dest;
+  //ic_symbol* dest;
   char *q_name;//label : if NULL no label
   ic_q_dest* dest;
-  ic_int_symbol* arg1;
-  ic_int_symbol* arg2;
+  ic_symbol* arg1;
+  ic_symbol* arg2;
   ic_op op;
   struct ic_q* next;
 }ic_quad;
@@ -53,19 +61,23 @@ typedef struct ic_quad_list{
   struct ic_quad_list* next;
 }ic_ql;
 
-extern ic_int_symbol* ic_symb_buff;
+extern ic_symbol* ic_symb_buff;
 extern ic_label* label_buff;
 extern ic_quad* q_buff;
 extern int ic_n_temp;
 extern int ic_label_n;
+extern ic_symb_val true_val;
+extern ic_symb_val false_val;
 
-ic_int_symbol* ic_gen_temp(int val);
-ic_int_symbol* ic_add_symb_s(char* str,int val,bool is_const);
-ic_int_symbol* ic_lookup(char *str);
-void ic_add_symb(ic_int_symbol* next);
-ic_quad* ic_quad_gen(ic_int_symbol* dest,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op);
-ic_quad* ic_quad_gen_g(char* dest,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op);
-ic_quad* ic_quad_gen_gl(ic_label *l,ic_int_symbol* arg1,ic_int_symbol* arg2,ic_op op);
+ic_symbol* ic_gen_temp_const(ic_symb_val val,typ_m type);
+ic_symbol* ic_gen_temp(typ_m type);
+//ic_symbol* ic_add_symb_s(char* str,int val,bool is_const);
+ic_symbol* ic_lookup(char *str);
+ic_quad* ic_symb_conv(ic_symbol* dest,ic_symbol* src);
+void ic_add_symb(ic_symbol* next);
+ic_quad* ic_quad_gen(ic_symbol* dest,ic_symbol* arg1,ic_symbol* arg2,ic_op op);
+ic_quad* ic_quad_gen_g(char* dest,ic_symbol* arg1,ic_symbol* arg2,ic_op op);
+ic_quad* ic_quad_gen_gl(ic_label *l,ic_symbol* arg1,ic_symbol* arg2,ic_op op);
 ic_quad* ic_quad_concat(ic_quad* arg1,ic_quad *arg2);
 void ic_quad_set_name(ic_quad* q,char* name);
 ic_label* ic_new_label(char* name,ic_quad* q);
@@ -93,7 +105,7 @@ typedef struct {
     char *name;
     typ_m t_id;
     val v_id;
-    ic_int_symbol* ic_var;
+    ic_symbol* ic_var;
     int decl_line;
 }id_s;
     
@@ -111,7 +123,7 @@ void var_print_table();
 /*****************************************************************************************************
                                function declaration
 ******************************************************************************************************/
-//typedef enum fd_typ{INT ,FLOAT, MATRIX, VOID};
+//typedef enum fd_typ{INT, FLOAT, MATRIX, VOID};
 
 typedef struct fd_param{
   id_s* val;
